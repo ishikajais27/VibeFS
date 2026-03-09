@@ -1,0 +1,110 @@
+{
+  "name": "vibefiles",
+  "displayName": "VibeFiles",
+  "description": "Generate project folders and files from templates or a photo of any structure.",
+  "version": "1.1.0",
+  "publisher": "vibefiles",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibefiles.generate",
+        "title": "VibeFiles: Generate from Template 🗂️",
+        "category": "VibeFiles",
+        "icon": "$(folder-library)"
+      },
+      {
+        "command": "vibefiles.generateFromImage",
+        "title": "VibeFiles: Generate from Image 📸",
+        "category": "VibeFiles",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "vibefiles.clearApiKey",
+        "title": "VibeFiles: Clear Saved API Key",
+        "category": "VibeFiles",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "vibefiles.generate",
+          "group": "vibefiles@1",
+          "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "vibefiles.generateFromImage",
+          "group": "vibefiles@2",
+          "when": "explorerResourceIsFolder"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vibefiles.generate",
+          "group": "vibefiles",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vibefiles.generate"
+        },
+        {
+          "command": "vibefiles.generateFromImage"
+        },
+        {
+          "command": "vibefiles.clearApiKey"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vibefiles-sidebar",
+          "title": "VibeFiles",
+          "icon": "$(folder-library)"
+        }
+      ]
+    },
+    "views": {
+      "vibefiles-sidebar": [
+        {
+          "id": "vibefiles.mainView",
+          "name": "VibeFiles",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "VibeFiles",
+      "properties": {
+        "vibefiles.groqApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your free Groq API key for image-based generation. Get one free at console.groq.com"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "npm run build -- --watch",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
