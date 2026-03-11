@@ -763,95 +763,35 @@ async function runGeneration(targetPath, task, label) {
 var vscode2 = __toESM(require("vscode"));
 var fs2 = __toESM(require("fs"));
 var path2 = __toESM(require("path"));
-async function analyzeImageWithGroq(imageBase64, mediaType, apiKey) {
-  const prompt = `You are a file system parser. The user has given you a screenshot or photo of a project folder/file structure (like a VS Code explorer tree, a diagram, or handwritten notes).
-
-Your job is to extract that structure and return it as a STRICT JSON object.
-
-Rules:
-- Return ONLY valid JSON. No markdown, no explanation, no code fences.
-- Use this exact schema:
-  {
-    "folderName": { "type": "folder", "children": { ... } },
-    "fileName.ext": { "type": "file", "content": "" }
-  }
-- Files should have empty "content": ""
-- Folders must have "type": "folder" and a "children" object.
-- Reproduce the structure exactly as shown in the image.
-- Return ONLY the JSON object, nothing else.`;
-  const response = await fetch(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mediaType};base64,${imageBase64}`
-                }
-              },
-              {
-                type: "text",
-                text: prompt
-              }
-            ]
-          }
-        ]
-      })
-    }
-  );
+var SERVER_URL = "https://vibe-fs-server.vercel.app/api/analyze";
+async function analyzeImageViaServer(imageBase64, mediaType) {
+  const response = await fetch(SERVER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageBase64, mediaType })
+  });
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`Groq API error ${response.status}: ${errorBody}`);
+    throw new Error(`Server error ${response.status}: ${errorBody}`);
   }
   const data = await response.json();
-  const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  const text = (data.result ?? "").trim();
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   try {
     return JSON.parse(cleaned);
   } catch {
     throw new Error(
-      `Failed to parse Groq response as JSON.
+      `Failed to parse response as JSON.
 
 Raw response:
 ${text.slice(0, 500)}`
     );
   }
 }
-async function getApiKey(context) {
-  const stored = await context.secrets.get("vibefiles.groqApiKey");
-  if (stored)
-    return stored;
-  const key = await vscode2.window.showInputBox({
-    title: "VibeFiles \u2014 Groq API Key",
-    prompt: "Enter your free Groq API key (get one at console.groq.com)",
-    placeHolder: "gsk_...",
-    password: true,
-    ignoreFocusOut: true,
-    validateInput: (v) => v.length > 10 ? null : "Enter a valid Groq API key"
-  });
-  if (!key)
-    return void 0;
-  await context.secrets.store("vibefiles.groqApiKey", key);
-  vscode2.window.showInformationMessage(
-    "\u2705 VibeFiles: Groq API key saved securely."
-  );
-  return key;
-}
 async function generateFromImage(context) {
-  const apiKey = await getApiKey(context);
-  if (!apiKey)
-    return;
   const imageUris = await vscode2.window.showOpenDialog({
     canSelectFiles: true,
     canSelectFolders: false,
@@ -886,13 +826,13 @@ async function generateFromImage(context) {
     await vscode2.window.withProgress(
       {
         location: vscode2.ProgressLocation.Notification,
-        title: "VibeFiles: Analyzing image with Groq AI...",
+        title: "VibeFiles: Analyzing image with AI...",
         cancellable: false
       },
       async () => {
         const imageBuffer = fs2.readFileSync(imagePath);
         const imageBase64 = imageBuffer.toString("base64");
-        tree = await analyzeImageWithGroq(imageBase64, mediaType, apiKey);
+        tree = await analyzeImageViaServer(imageBase64, mediaType);
       }
     );
     const previewLines = flattenTree(tree, "");

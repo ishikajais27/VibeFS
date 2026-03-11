@@ -5,73 +5,34 @@ import { TemplateTree } from '../templates'
 import { createStructure } from '../utils/fileSystem'
 import { pickTargetFolder, runGeneration } from './generate'
 
-// ─── Groq Vision API call ─────────────────────────────────────────────────────
+// ─── Your Vercel backend URL ──────────────────────────────────────────────────
+const SERVER_URL = 'https://vibe-fs-server.vercel.app/api/analyze'
 
-async function analyzeImageWithGroq(
+// ─── Call your backend (no API key needed by user) ───────────────────────────
+
+async function analyzeImageViaServer(
   imageBase64: string,
   mediaType: string,
-  apiKey: string,
 ): Promise<TemplateTree> {
-  const prompt = `You are a file system parser. The user has given you a screenshot or photo of a project folder/file structure (like a VS Code explorer tree, a diagram, or handwritten notes).
-
-Your job is to extract that structure and return it as a STRICT JSON object.
-
-Rules:
-- Return ONLY valid JSON. No markdown, no explanation, no code fences.
-- Use this exact schema:
-  {
-    "folderName": { "type": "folder", "children": { ... } },
-    "fileName.ext": { "type": "file", "content": "" }
-  }
-- Files should have empty "content": ""
-- Folders must have "type": "folder" and a "children" object.
-- Reproduce the structure exactly as shown in the image.
-- Return ONLY the JSON object, nothing else.`
-
-  const response = await fetch(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        max_tokens: 4096,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mediaType};base64,${imageBase64}`,
-                },
-              },
-              {
-                type: 'text',
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      }),
-    },
-  )
+  const response = await fetch(SERVER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageBase64, mediaType }),
+  })
 
   if (!response.ok) {
     const errorBody = await response.text()
-    throw new Error(`Groq API error ${response.status}: ${errorBody}`)
+    throw new Error(`Server error ${response.status}: ${errorBody}`)
   }
 
-  const data = (await response.json()) as {
-    choices: Array<{ message: { content: string } }>
+  const data = (await response.json()) as { result?: string; error?: string }
+
+  if (data.error) {
+    throw new Error(data.error)
   }
 
-  const text = data.choices?.[0]?.message?.content?.trim() ?? ''
+  const text = (data.result ?? '').trim()
 
-  // Strip markdown fences if model adds them
   const cleaned = text
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
@@ -81,35 +42,9 @@ Rules:
     return JSON.parse(cleaned) as TemplateTree
   } catch {
     throw new Error(
-      `Failed to parse Groq response as JSON.\n\nRaw response:\n${text.slice(0, 500)}`,
+      `Failed to parse response as JSON.\n\nRaw response:\n${text.slice(0, 500)}`,
     )
   }
-}
-
-// ─── Get or prompt for API key ────────────────────────────────────────────────
-
-async function getApiKey(
-  context: vscode.ExtensionContext,
-): Promise<string | undefined> {
-  const stored = await context.secrets.get('vibefiles.groqApiKey')
-  if (stored) return stored
-
-  const key = await vscode.window.showInputBox({
-    title: 'VibeFiles — Groq API Key',
-    prompt: 'Enter your free Groq API key (get one at console.groq.com)',
-    placeHolder: 'gsk_...',
-    password: true,
-    ignoreFocusOut: true,
-    validateInput: (v) => (v.length > 10 ? null : 'Enter a valid Groq API key'),
-  })
-
-  if (!key) return undefined
-
-  await context.secrets.store('vibefiles.groqApiKey', key)
-  vscode.window.showInformationMessage(
-    '✅ VibeFiles: Groq API key saved securely.',
-  )
-  return key
 }
 
 // ─── Main command ─────────────────────────────────────────────────────────────
@@ -117,11 +52,7 @@ async function getApiKey(
 export async function generateFromImage(
   context: vscode.ExtensionContext,
 ): Promise<void> {
-  // Step 1: Get API key
-  const apiKey = await getApiKey(context)
-  if (!apiKey) return
-
-  // Step 2: Pick image file
+  // Step 1: Pick image file
   const imageUris = await vscode.window.showOpenDialog({
     canSelectFiles: true,
     canSelectFolders: false,
@@ -151,24 +82,24 @@ export async function generateFromImage(
     return
   }
 
-  // Step 3: Pick target folder
+  // Step 2: Pick target folder
   const targetPath = await pickTargetFolder()
   if (!targetPath) return
 
-  // Step 4: Analyze + generate
+  // Step 3: Analyze + generate
   let tree: TemplateTree
 
   try {
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: 'VibeFiles: Analyzing image with Groq AI...',
+        title: 'VibeFiles: Analyzing image with AI...',
         cancellable: false,
       },
       async () => {
         const imageBuffer = fs.readFileSync(imagePath)
         const imageBase64 = imageBuffer.toString('base64')
-        tree = await analyzeImageWithGroq(imageBase64, mediaType, apiKey)
+        tree = await analyzeImageViaServer(imageBase64, mediaType)
       },
     )
 
