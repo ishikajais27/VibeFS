@@ -1,31 +1,69 @@
-# VibeFiles
+# ⚡ VibeFiles
 
-> Generate project folder structures from **templates** or a **photo/screenshot** of any structure.
+Generate your project folder structure in seconds — from a template or a screenshot.
 
----
-
-## Features
-
-- 📁 **Template Mode** — Pick React, Next.js, Express, Flask, Django, or Node.js and get a full boilerplate instantly
-- 📸 **Image Mode** — Snap a photo, screenshot a diagram, or draw your structure on paper — VibeFiles reads it with Claude AI and creates the folders/files for you
-- 🔒 **Secure API key storage** — Your Anthropic key is stored in VS Code's built-in secrets vault
-- ✅ **Preview before creating** — Image mode shows you exactly what will be created before writing any files
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue)](https://marketplace.visualstudio.com/items?itemName=vibefiles.vibefiles)
 
 ---
 
-## Commands
+## What it does
 
-Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
+Instead of manually creating folders and files one by one, VibeFiles does it all instantly.
 
-| Command                             | What it does                                                      |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `VibeFiles: Generate from Template` | Pick a framework + language → files generated                     |
-| `VibeFiles: Generate from Image 📸` | Upload a photo of a structure → Claude reads it → files generated |
-| `VibeFiles: Clear Saved API Key`    | Remove your stored Anthropic API key                              |
+- 🗂️ **Template Mode** — Pick a framework and get a full starter structure
+- 📸 **Image Mode** — Upload a screenshot of any folder structure and VibeFiles recreates it using AI
+
+No API key needed. No account. Completely free.
 
 ---
 
-## Supported Templates
+## Install
+
+**From VS Code:**
+
+1. Press `Ctrl + Shift + X`
+2. Search `VibeFiles`
+3. Click **Install**
+
+**From the web:**
+
+```
+https://marketplace.visualstudio.com/items?itemName=vibefiles.vibefiles
+```
+
+---
+
+## How to Use
+
+You have 3 ways to open VibeFiles — no commands needed:
+
+|     | Method          | How                                                 |
+| --- | --------------- | --------------------------------------------------- |
+| ⚡  | Sidebar         | Click the VibeFiles icon in the left activity bar   |
+| 🖱️  | Right-click     | Right-click any folder in Explorer → pick VibeFiles |
+| ⌨️  | Command Palette | `Ctrl+Shift+P` → type `VibeFiles`                   |
+
+### 🗂️ Template Mode
+
+1. Click **Generate from Template**
+2. Pick a framework
+3. Pick a language
+4. Choose where to save
+5. Done ✅
+
+### 📸 Image Mode
+
+1. Click **Generate from Image**
+2. Pick a PNG or JPG showing a folder structure
+3. Choose where to save
+4. Review what AI detected → click **Create Files**
+5. Done ✅
+
+Works with screenshots, GitHub repo views, or even a photo of paper.
+
+---
+
+## Supported Frameworks
 
 | Framework | Languages              |
 | --------- | ---------------------- |
@@ -38,36 +76,52 @@ Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
 ---
 
-## Image Mode Setup
+## How I Built It
 
-1. Get an API key from [console.anthropic.com](https://console.anthropic.com/)
-2. Run `VibeFiles: Generate from Image 📸`
-3. Paste your key when prompted (saved securely, never asked again)
-4. Pick your image (PNG, JPG, JPEG, GIF, WEBP)
-5. Preview the detected structure → confirm → done ✅
+**Stack:**
 
-Works with:
+- TypeScript + VS Code Extension API
+- Sidebar built as a `WebviewViewProvider` with custom HTML/CSS
+- File creation uses Node.js `fs` (not `vscode.workspace.fs`) to avoid workspace conflicts
+- Image AI powered by Groq (`llama-4-scout-17b`) via a Vercel serverless backend — users need zero setup
+- Packaged with `esbuild` + `vsce`
 
-- VS Code Explorer screenshots
-- Hand-drawn diagrams
-- Architecture diagrams
-- Any image showing folder/file trees
+**Project structure:**
+
+```
+src/
+├── extension.ts              # Registers commands + sidebar
+├── commands/
+│   ├── generate.ts           # Template mode logic
+│   └── generateFromImage.ts  # Image mode + Vercel API call
+├── templates/
+│   └── index.ts              # All framework templates
+└── utils/
+    └── fileSystem.ts         # Writes folders/files to disk
+```
+
+**Key decisions:**
+
+- Backend proxy on Vercel so no user needs a Groq API key
+- Rate limited to 10 requests/IP/day to protect the free quota
+- Preview step before file creation so users can confirm what AI detected
 
 ---
 
-## Development Setup
+## Troubleshooting
 
-```bash
-npm install
-npm run build
-```
+**Sidebar icon not showing** → Fully close and reopen VS Code
 
-Press `F5` to open the Extension Development Host and test both commands.
+**Files not created** → Don't generate into the extension folder. Pick a fresh target folder
 
-```bash
-npm run package   # creates .vsix file
-```
+**Image not reading right** → Use a clear screenshot with readable text. Higher resolution works better
 
 ---
 
-## No subscriptions. Open source. Built for vibe coders. 🎵
+## License
+
+MIT — free to use, share, and modify.
+
+---
+
+Built by [Ishika Jaiswal](https://github.com/ishikajais09876)
