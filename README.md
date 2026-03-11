@@ -12,6 +12,7 @@ Instead of manually creating folders and files one by one, VibeFiles does it all
 
 - 🗂️ **Template Mode** — Pick a framework and get a full starter structure
 - 📸 **Image Mode** — Upload a screenshot of any folder structure and VibeFiles recreates it using AI
+- 📝 **Text Mode** — Paste any folder structure as text and VibeFiles creates it instantly
 
 No API key needed. No account. Completely free.
 
@@ -61,6 +62,16 @@ You have 3 ways to open VibeFiles — no commands needed:
 
 Works with screenshots, GitHub repo views, or even a photo of paper.
 
+### 📝 Text Mode
+
+1. Click **Generate from Text**
+2. Paste your folder structure (supports plain indent or tree-style `├──` format)
+3. Choose where to save
+4. Review what was detected → click **Create Files**
+5. Done ✅
+
+Works with any text tree — paste directly from ChatGPT, GitHub, or terminal output.
+
 ---
 
 ## Supported Frameworks
@@ -93,7 +104,8 @@ src/
 ├── extension.ts              # Registers commands + sidebar
 ├── commands/
 │   ├── generate.ts           # Template mode logic
-│   └── generateFromImage.ts  # Image mode + Vercel API call
+│   ├── generateFromImage.ts  # Image mode + Vercel API call
+│   └── generateFromText.ts   # Text mode logic
 ├── templates/
 │   └── index.ts              # All framework templates
 └── utils/
@@ -115,6 +127,8 @@ src/
 **Files not created** → Don't generate into the extension folder. Pick a fresh target folder
 
 **Image not reading right** → Use a clear screenshot with readable text. Higher resolution works better
+
+**Text not parsing right** → Make sure folders end with `/` and nesting uses consistent indentation
 
 ---
 

@@ -34,7 +34,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode3 = __toESM(require("vscode"));
+var vscode4 = __toESM(require("vscode"));
 
 // src/commands/generate.ts
 var vscode = __toESM(require("vscode"));
@@ -874,6 +874,244 @@ function flattenTree(tree, prefix) {
   return lines;
 }
 
+// src/commands/generateFromText.ts
+var vscode3 = __toESM(require("vscode"));
+function parseTextStructure(text) {
+  const lines = text.split("\n").map((l) => l.replace(/\r$/, "")).filter((l) => l.trim().length > 0);
+  const root = {};
+  function getDepthAndName(line) {
+    const stripped = line.replace(/[│├└─\s]*/, "").trimEnd();
+    const raw = line.replace(/[├└─│]/g, " ");
+    const indent = raw.match(/^(\s*)/)?.[1] ?? "";
+    const depth = Math.round(indent.replace(/\t/g, "  ").length / 2);
+    return { depth, name: stripped };
+  }
+  const stack = [
+    { depth: -1, tree: root }
+  ];
+  for (const line of lines) {
+    const { depth, name } = getDepthAndName(line);
+    if (!name)
+      continue;
+    const isFolder = name.endsWith("/");
+    const cleanName = isFolder ? name.slice(0, -1) : name;
+    while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {
+      stack.pop();
+    }
+    const parentTree = stack[stack.length - 1].tree;
+    if (isFolder) {
+      const children = {};
+      parentTree[cleanName] = { type: "folder", children };
+      stack.push({ depth, tree: children });
+    } else {
+      parentTree[cleanName] = { type: "file", content: "" };
+    }
+  }
+  return root;
+}
+function flattenTree2(tree, prefix) {
+  const lines = [];
+  for (const [name, entry] of Object.entries(tree)) {
+    if (entry.type === "folder") {
+      lines.push(`${prefix}\u{1F4C1} ${name}/`);
+      lines.push(...flattenTree2(entry.children, prefix + "  "));
+    } else {
+      lines.push(`${prefix}\u{1F4C4} ${name}`);
+    }
+  }
+  return lines;
+}
+function showTextInputPanel(context) {
+  return new Promise((resolve) => {
+    const panel = vscode3.window.createWebviewPanel(
+      "vibefilesTextInput",
+      "VibeFiles \u2014 Paste Folder Structure",
+      vscode3.ViewColumn.One,
+      { enableScripts: true }
+    );
+    panel.webview.html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--vscode-font-family);
+      background: var(--vscode-editor-background);
+      color: var(--vscode-foreground);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    p {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: var(--vscode-editor-font-size, 13px);
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, #555);
+      border-radius: 4px;
+      padding: 12px;
+      resize: none;
+      outline: none;
+      line-height: 1.6;
+      tab-size: 2;
+    }
+    textarea:focus {
+      border-color: var(--vscode-focusBorder);
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    button {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+    .hint {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <h2>\u{1F4DD} Paste your folder structure</h2>
+  <p>Use trailing <code>/</code> for folders and indentation for nesting. Supports plain indent and tree-style (\u251C\u2500\u2500) formats.</p>
+  <textarea id="input" spellcheck="false" placeholder="stone-paper-scissor-game/
+\u251C\u2500\u2500 public/
+\u2502   \u251C\u2500\u2500 index.html
+\u2502   \u251C\u2500\u2500 favicon.ico
+\u2502   \u2514\u2500\u2500 manifest.json
+\u251C\u2500\u2500 src/
+\u2502   \u251C\u2500\u2500 css/
+\u2502   \u2502   \u251C\u2500\u2500 reset.css
+\u2502   \u2502   \u2514\u2500\u2500 style.css
+\u2502   \u2514\u2500\u2500 js/
+\u2502       \u2514\u2500\u2500 main.js
+\u2514\u2500\u2500 package.json"></textarea>
+  <div class="actions">
+    <button class="btn-primary" onclick="submit()">Generate Files</button>
+    <button class="btn-secondary" onclick="cancel()">Cancel</button>
+  </div>
+  <div class="hint">\u{1F4A1} Tip: You can paste directly from ChatGPT, GitHub, or any terminal tree output.</div>
+  <script>
+    const vscode = acquireVsCodeApi();
+    function submit() {
+      const val = document.getElementById('input').value.trim();
+      if (!val) { document.getElementById('input').focus(); return; }
+      vscode.postMessage({ command: 'submit', text: val });
+    }
+    function cancel() {
+      vscode.postMessage({ command: 'cancel' });
+    }
+    document.getElementById('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const el = e.target;
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        el.value = el.value.substring(0, start) + '  ' + el.value.substring(end);
+        el.selectionStart = el.selectionEnd = start + 2;
+      }
+    });
+  </script>
+</body>
+</html>`;
+    let resolved = false;
+    panel.webview.onDidReceiveMessage((msg) => {
+      if (resolved)
+        return;
+      if (msg.command === "submit") {
+        resolved = true;
+        panel.dispose();
+        resolve(msg.text);
+      } else if (msg.command === "cancel") {
+        resolved = true;
+        panel.dispose();
+        resolve(void 0);
+      }
+    });
+    panel.onDidDispose(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(void 0);
+      }
+    });
+  });
+}
+async function generateFromText(context) {
+  const input = await showTextInputPanel(context);
+  if (!input)
+    return;
+  let tree;
+  try {
+    tree = parseTextStructure(input);
+  } catch (err) {
+    vscode3.window.showErrorMessage(
+      `VibeFiles: Could not parse structure \u2014 ${err instanceof Error ? err.message : String(err)}`
+    );
+    return;
+  }
+  const previewLines = flattenTree2(tree, "");
+  if (previewLines.length === 0) {
+    vscode3.window.showErrorMessage(
+      "VibeFiles: No files or folders detected in the pasted text."
+    );
+    return;
+  }
+  const preview = previewLines.slice(0, 20).join("\n") + (previewLines.length > 20 ? `
+... and ${previewLines.length - 20} more` : "");
+  const confirm = await vscode3.window.showInformationMessage(
+    `VibeFiles detected ${previewLines.length} items:
+
+${preview}`,
+    { modal: true },
+    "Create Files",
+    "Cancel"
+  );
+  if (confirm !== "Create Files")
+    return;
+  const targetPath = await pickTargetFolder();
+  if (!targetPath)
+    return;
+  await runGeneration(
+    targetPath,
+    async () => {
+      await createStructure(targetPath, tree);
+    },
+    "Text-based structure"
+  );
+}
+
 // src/extension.ts
 var VibeFilesSidebarProvider = class {
   constructor(context) {
@@ -957,6 +1195,10 @@ var VibeFilesSidebarProvider = class {
     <span class="emoji">\u{1F4F8}</span> Generate from Image
   </button>
 
+  <button class="btn-secondary" onclick="send('text')">
+    <span class="emoji">\u{1F4CB}</span> Generate from Text
+  </button>
+
   <hr class="divider"/>
 
   <div class="tip">
@@ -971,30 +1213,36 @@ var VibeFilesSidebarProvider = class {
 </html>`;
     webviewView.webview.onDidReceiveMessage((msg) => {
       if (msg.command === "generate") {
-        vscode3.commands.executeCommand("vibefiles.generate");
+        vscode4.commands.executeCommand("vibefiles.generate");
       } else if (msg.command === "image") {
-        vscode3.commands.executeCommand("vibefiles.generateFromImage");
+        vscode4.commands.executeCommand("vibefiles.generateFromImage");
+      } else if (msg.command === "text") {
+        vscode4.commands.executeCommand("vibefiles.generateFromText");
       }
     });
   }
 };
 function activate(context) {
   context.subscriptions.push(
-    vscode3.commands.registerCommand(
+    vscode4.commands.registerCommand(
       "vibefiles.generate",
       () => generateProjectStructure()
     ),
-    vscode3.commands.registerCommand(
+    vscode4.commands.registerCommand(
       "vibefiles.generateFromImage",
       () => generateFromImage(context)
     ),
-    vscode3.commands.registerCommand("vibefiles.clearApiKey", async () => {
+    vscode4.commands.registerCommand(
+      "vibefiles.generateFromText",
+      () => generateFromText(context)
+    ),
+    vscode4.commands.registerCommand("vibefiles.clearApiKey", async () => {
       await context.secrets.delete("vibefiles.groqApiKey");
-      vscode3.window.showInformationMessage("VibeFiles: API key cleared.");
+      vscode4.window.showInformationMessage("VibeFiles: API key cleared.");
     })
   );
   context.subscriptions.push(
-    vscode3.window.registerWebviewViewProvider(
+    vscode4.window.registerWebviewViewProvider(
       "vibefiles.mainView",
       new VibeFilesSidebarProvider(context)
     )
