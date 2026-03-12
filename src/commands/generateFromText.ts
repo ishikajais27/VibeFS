@@ -31,6 +31,30 @@ function parseTextStructure(text: string): TemplateTree {
     const { depth, name } = getDepthAndName(line)
     if (!name) continue
 
+    // ── Skip comment lines, inline comments, and invalid file names ──
+    if (name.startsWith('#')) continue
+    if (name.includes('#')) {
+      // e.g. "page.tsx # Next.js app router" → take only the part before #
+      const cleanedName = name.split('#')[0].trim()
+      if (!cleanedName) continue
+      // re-process as a clean name
+      const isFolder = cleanedName.endsWith('/')
+      const cleanName = isFolder ? cleanedName.slice(0, -1) : cleanedName
+
+      while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {
+        stack.pop()
+      }
+      const parentTree = stack[stack.length - 1].tree
+      if (isFolder) {
+        const children: TemplateTree = {}
+        parentTree[cleanName] = { type: 'folder', children }
+        stack.push({ depth, tree: children })
+      } else {
+        parentTree[cleanName] = { type: 'file', content: '' }
+      }
+      continue
+    }
+
     const isFolder = name.endsWith('/')
     const cleanName = isFolder ? name.slice(0, -1) : name
 

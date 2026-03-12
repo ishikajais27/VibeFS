@@ -444,4 +444,3 @@ export const templates: Template[] = [
     },
   },
 ]
-      

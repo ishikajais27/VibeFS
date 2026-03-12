@@ -893,6 +893,27 @@ function parseTextStructure(text) {
     const { depth, name } = getDepthAndName(line);
     if (!name)
       continue;
+    if (name.startsWith("#"))
+      continue;
+    if (name.includes("#")) {
+      const cleanedName = name.split("#")[0].trim();
+      if (!cleanedName)
+        continue;
+      const isFolder2 = cleanedName.endsWith("/");
+      const cleanName2 = isFolder2 ? cleanedName.slice(0, -1) : cleanedName;
+      while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {
+        stack.pop();
+      }
+      const parentTree2 = stack[stack.length - 1].tree;
+      if (isFolder2) {
+        const children = {};
+        parentTree2[cleanName2] = { type: "folder", children };
+        stack.push({ depth, tree: children });
+      } else {
+        parentTree2[cleanName2] = { type: "file", content: "" };
+      }
+      continue;
+    }
     const isFolder = name.endsWith("/");
     const cleanName = isFolder ? name.slice(0, -1) : name;
     while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {

@@ -34,6 +34,8 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateProjectStructure = generateProjectStructure;
+exports.pickTargetFolder = pickTargetFolder;
+exports.runGeneration = runGeneration;
 const vscode = __importStar(require("vscode"));
 const templates_1 = require("../templates");
 const fileSystem_1 = require("../utils/fileSystem");
@@ -46,23 +48,29 @@ async function generateProjectStructure() {
         placeHolder: 'Select a framework',
         title: 'VibeFiles — Choose Framework',
     });
-    if (!frameworkPick) {
-        return; // user cancelled
-    }
+    if (!frameworkPick)
+        return;
     const selectedTemplate = templates_1.templates.find((t) => t.label === frameworkPick.label);
     // ── Step 2: Pick Language ─────────────────────────────────
     const languagePick = await vscode.window.showQuickPick(selectedTemplate.languages.map((l) => ({ label: l })), {
         placeHolder: 'Select a language',
         title: 'VibeFiles — Choose Language',
     });
-    if (!languagePick) {
+    if (!languagePick)
         return;
-    }
     // ── Step 3: Pick Target Folder ────────────────────────────
-    let targetPath;
+    const targetPath = await pickTargetFolder();
+    if (!targetPath)
+        return;
+    // ── Step 4: Generate Files ────────────────────────────────
+    await runGeneration(targetPath, async () => {
+        const tree = selectedTemplate.getTree(languagePick.label);
+        await (0, fileSystem_1.createStructure)(targetPath, tree);
+    }, `${selectedTemplate.label} (${languagePick.label})`);
+}
+async function pickTargetFolder() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (workspaceFolders && workspaceFolders.length > 0) {
-        // Ask if they want to use current workspace or pick new folder
         const choice = await vscode.window.showQuickPick([
             {
                 label: '$(folder-opened) Use current workspace',
@@ -77,37 +85,32 @@ async function generateProjectStructure() {
             placeHolder: 'Where should VibeFiles generate the structure?',
             title: 'VibeFiles — Target Folder',
         });
-        if (!choice) {
-            return;
-        }
+        if (!choice)
+            return undefined;
         if (choice.value === 'workspace') {
-            targetPath = workspaceFolders[0].uri.fsPath;
+            return workspaceFolders[0].uri.fsPath;
         }
     }
-    if (!targetPath) {
-        const folderUri = await vscode.window.showOpenDialog({
-            canSelectFolders: true,
-            canSelectFiles: false,
-            canSelectMany: false,
-            openLabel: 'Select Project Folder',
-        });
-        if (!folderUri || folderUri.length === 0) {
-            return;
-        }
-        targetPath = folderUri[0].fsPath;
-    }
-    // ── Step 4: Generate Files ────────────────────────────────
+    const folderUri = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'Select Project Folder',
+    });
+    if (!folderUri || folderUri.length === 0)
+        return undefined;
+    return folderUri[0].fsPath;
+}
+async function runGeneration(targetPath, task, label) {
     try {
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: `VibeFiles: Generating ${selectedTemplate.label} (${languagePick.label})...`,
+            title: `VibeFiles: Generating ${label}...`,
             cancellable: false,
         }, async () => {
-            const tree = selectedTemplate.getTree(languagePick.label);
-            await (0, fileSystem_1.createStructure)(targetPath, tree);
+            await task();
         });
-        // ── Step 5: Success message + open folder ─────────────
-        const action = await vscode.window.showInformationMessage(`✅ VibeFiles: ${selectedTemplate.label} structure created successfully!`, 'Open Folder', 'Dismiss');
+        const action = await vscode.window.showInformationMessage(`✅ VibeFiles: ${label} structure created successfully!`, 'Open Folder', 'Dismiss');
         if (action === 'Open Folder') {
             await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), false);
         }
