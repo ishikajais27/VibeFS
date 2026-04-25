@@ -880,11 +880,12 @@ function parseTextStructure(text) {
   const lines = text.split("\n").map((l) => l.replace(/\r$/, "")).filter((l) => l.trim().length > 0);
   const root = {};
   function getDepthAndName(line) {
-    const stripped = line.replace(/[│├└─\s]*/, "").trimEnd();
-    const raw = line.replace(/[├└─│]/g, " ");
-    const indent = raw.match(/^(\s*)/)?.[1] ?? "";
-    const depth = Math.round(indent.replace(/\t/g, "  ").length / 2);
-    return { depth, name: stripped };
+    const normalised = line.replace(/[│]/g, " ").replace(/[├└]──\s?/g, "    ").replace(/[─]/g, " ");
+    const indent = normalised.match(/^( *)/)?.[1] ?? "";
+    const hasBoxChars = /[│├└─]/.test(line);
+    const depth = hasBoxChars ? Math.floor(indent.length / 4) : Math.floor(indent.length / 2);
+    let name = line.replace(/^[\s│├└─]+/, "").split("#")[0].trim();
+    return { depth, name };
   }
   const stack = [
     { depth: -1, tree: root }
@@ -895,25 +896,6 @@ function parseTextStructure(text) {
       continue;
     if (name.startsWith("#"))
       continue;
-    if (name.includes("#")) {
-      const cleanedName = name.split("#")[0].trim();
-      if (!cleanedName)
-        continue;
-      const isFolder2 = cleanedName.endsWith("/");
-      const cleanName2 = isFolder2 ? cleanedName.slice(0, -1) : cleanedName;
-      while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {
-        stack.pop();
-      }
-      const parentTree2 = stack[stack.length - 1].tree;
-      if (isFolder2) {
-        const children = {};
-        parentTree2[cleanName2] = { type: "folder", children };
-        stack.push({ depth, tree: children });
-      } else {
-        parentTree2[cleanName2] = { type: "file", content: "" };
-      }
-      continue;
-    }
     const isFolder = name.endsWith("/");
     const cleanName = isFolder ? name.slice(0, -1) : name;
     while (stack.length > 1 && stack[stack.length - 1].depth >= depth) {
