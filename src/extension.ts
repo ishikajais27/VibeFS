@@ -3,7 +3,7 @@ import { generateProjectStructure } from './commands/generate'
 import { generateFromImage } from './commands/generateFromImage'
 import { generateFromText } from './commands/generateFromText'
 import { telemetry, initStatusBar } from './telemetry/telemetry'
-import { imageAnalysisCache, textParseCache } from './cache/lruCache'
+import { imageAnalysisCache, textParseCache } from './utils/lruCache'
 
 // ─── Sidebar Webview Provider ─────────────────────────────────────────────────
 
